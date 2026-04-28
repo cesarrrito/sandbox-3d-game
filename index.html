@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sandbox 3D - Jeu de Construction</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #1a1a2e;
+        }
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #hud {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        #hearts {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 5px;
+        }
+        .heart {
+            width: 32px;
+            height: 32px;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="%23e74c3c" d="M16 28s-12-7.5-12-15c0-5 4-9 9-9 3 0 5.5 2 7 4 1.5-2 4-4 7-4 5 0 9 4 9 9 0 7.5-12 15-12 15z"/></svg>');
+            background-size: contain;
+            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.5));
+        }
+        .heart.empty {
+            opacity: 0.3;
+        }
+        .heart.half {
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="%23e74c3c" d="M16 28s-12-7.5-12-15c0-5 4-9 9-9 3 0 5.5 2 7 4v20s-12-7.5-12-15c0-5 4-9 9-9 3 0 5.5 2 7 4v20z"/></svg>');
+            background-size: contain;
+        }
+        #hotbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 4px;
+            background: rgba(0,0,0,0.6);
+            padding: 8px;
+            border-radius: 8px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .hotbar-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(50,50,50,0.8);
+            border: 2px solid #555;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        .hotbar-slot.selected {
+            border-color: #fff;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        .hotbar-slot .item-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+        }
+        .hotbar-slot .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 12px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+        }
+        .hotbar-slot .slot-number {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 10px;
+            color: #aaa;
+        }
+        #controls-guide {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            font-size: 13px;
+            line-height: 1.8;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        #controls-guide h3 {
+            margin-bottom: 10px;
+            color: #f39c12;
+            font-size: 14px;
+        }
+        #controls-guide kbd {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid #555;
+            font-family: monospace;
+        }
+        #inventory-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        #inventory-screen.active {
+            display: flex;
+        }
+        #inventory-panel {
+            background: linear-gradient(145deg, #2c2c3e, #1a1a2e);
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #444;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        #inventory-panel h2 {
+            color: #f39c12;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 24px;
+        }
+        #inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 60px);
+            gap: 8px;
+        }
+        .inv-slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(60,60,80,0.8);
+            border: 2px solid #555;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .inv-slot:hover {
+            border-color: #f39c12;
+            transform: scale(1.05);
+        }
+        .inv-slot .item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+        }
+        .inv-slot .item-count {
+            font-size: 11px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+        }
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+            z-index: 150;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: white;
+            box-shadow: 0 0 3px black;
+        }
+        #crosshair::before {
+            width: 2px;
+            height: 20px;
+            left: 9px;
+        }
+        #crosshair::after {
+            width: 20px;
+            height: 2px;
+            top: 9px;
+        }
+        #damage-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(transparent 40%, rgba(255,0,0,0.4));
+            opacity: 0;
+            transition: opacity 0.1s;
+            z-index: 90;
+        }
+        #damage-overlay.active {
+            opacity: 1;
+        }
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: white;
+        }
+        #loading-screen h1 {
+            font-size: 48px;
+            margin-bottom: 30px;
+            color: #f39c12;
+        }
+        .loading-bar {
+            width: 300px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .loading-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f39c12, #e74c3c);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        #notification {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 300;
+        }
+        #notification.active {
+            opacity: 1;
+        }
+        #mob-counter {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            color: white;
+            font-size: 14px;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 15px;
+            border-radius: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <h1>Sandbox 3D</h1>
+        <div class="loading-bar">
+            <div class="loading-bar-fill" id="loading-progress"></div>
+        </div>
+        <p style="margin-top: 20px; color: #aaa;">Génération du monde...</p>
+    </div>
+
+    <div id="game-container"></div>
+
+    <div id="hud">
+        <div id="hearts"></div>
+        <div id="mob-counter">Monstres: <span id="mob-count">0</span></div>
+        <div id="hotbar"></div>
+        <div id="controls-guide">
+            <h3>CONTRÔLES</h3>
+            <div><kbd>↑↓←→</kbd> Déplacement</div>
+            <div><kbd>Clic Gauche</kbd> Attaque / Casser</div>
+            <div><kbd>Clic Droite</kbd> Poser bloc</div>
+            <div><kbd>I</kbd> Inventaire</div>
+            <div><kbd>1-5</kbd> Sélectionner slot</div>
+            <div><kbd>ESPACE</kbd> Sauter</div>
+            <div><kbd>SHIFT</kbd> Sprint</div>
+        </div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="damage-overlay"></div>
+
+    <div id="inventory-screen">
+        <div id="inventory-panel">
+            <h2>Inventaire</h2>
+            <div id="inventory-grid"></div>
+        </div>
+    </div>
+
+    <div id="notification"></div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
